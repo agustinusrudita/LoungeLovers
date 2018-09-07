@@ -1,0 +1,40 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <!-- http://garden.zendesk.com -->
+  <link rel="stylesheet" href="https://assets.zendesk.com/apps/sdk-assets/css/0/zendesk_garden.css" type="text/css">
+</head>
+<body>
+  <h2 class="u-gamma">Generate Technician Ticket</h2>
+  <br>  
+  <button class="edit c-btn" onclick="init();">Preview Technician</button>
+  <!-- https://github.com/zendesk/zendesk_app_framework_sdk -->
+  <script type="text/javascript" src="https://assets.zendesk.com/apps/sdk/2.0/zaf_sdk.js"></script>
+  <script>
+    // Initialise the Zendesk JavaScript API client
+    // https://developer.zendesk.com/apps/docs/apps-v2
+    var client = ZAFClient.init();
+    client.invoke('resize', { width: '100%', height: '200px' });
+    //client.on('app.registered', init);
+    function init(){
+      client.context().then(create_modal);
+    };
+    //When we create the modal we send the current client's guid as a hash parameter to the modal by adding it to the url
+    function create_modal(context){
+      var parent_guid = context.instanceGuid;
+      var options = {
+        location: "modal",
+        url: "assets/modal.html#parent_guid=" + parent_guid
+      }
+      client.invoke('instances.create', options)
+    };
+    
+    function mainEl() {
+      return document.querySelector('section[data-main]');
+    } 
+    
+    function generate_modal_data(){
+    };
+  </script>
+</body>
+</html>

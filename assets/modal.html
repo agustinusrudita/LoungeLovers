@@ -1,0 +1,244 @@
+<html>
+<head>
+  <meta charset="utf-8">  
+  <link rel="stylesheet" href="https://assets.zendesk.com/apps/sdk-assets/css/0/zendesk_garden.css" type="text/css">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+</head>
+<body>
+  <h2 class="u-gamma">Generate Technician Ticket</h2>
+  <div id="modalContent">
+  </div>
+  <script src="//code.jquery.com/jquery-1.11.1.min.js"></script>
+  <script type="text/javascript" src="https://assets.zendesk.com/apps/sdk/2.0/zaf_sdk.js"></script>  
+  <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.0/js/bootstrap.min.js"></script>  
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.4/lodash.min.js"></script>
+  <script>
+    var client = ZAFClient.init();
+    client.invoke('resize', { width: '1024px', height: '768px' });
+    client.on('app.registered', init);
+    function init(){
+      var params = parseParams(window.location.hash); 
+      var pc = getParentClient(params.parent_guid); 
+      pc.get('ticket').then(function(ticket_data){
+        ticket_data.ticket.tags.push("lnkt:prnt:" + ticket_data.ticket.id);                
+        var mainEl = function() {
+          return document.querySelector('#modalContent');
+        };
+
+        var ModalApp = function() {   
+          this.render(ticket_data);                     
+        };
+
+        ModalApp.prototype = {
+          render: function(ticketRes) {               
+            console.log(ticketRes.ticket);   
+            new mainEl().innerHTML = 
+            '<form id="modal">' +
+              '<div class="row">' +
+                '<div class="col-sm-2">Requester:</div>' +
+                '<div class="col-sm-10"><input type="text" class="c-txt__input" id="txtRequester" readonly></input></div>' +
+              '</div>' +
+              '<div class="row">' +
+                '<div class="col-sm-2">Tag:</div>' +
+                '<div class="col-sm-10"><input type="text" class="c-txt__input" id="txtTag" value="' + ticketRes.ticket.tags + '"></input></div>' +
+              '</div>' +
+              '<div class="row">' +
+                '<div class="col-sm-2">Public Comment:</div>' +
+                '<div class="col-sm-10"><div id="txtTemplate" contenteditable="true" class="editor zendesk-editor--rich-text-comment" dir="auto"></div></div>' +
+              '</div>' +
+              '<div class="row">' +
+                '<div class="col-sm-2">Attachments:</div>' +
+                '<div class="col-sm-10"><ul id="listComments" class="list-group"></ul></div>' +
+              '</div>' +
+              '<div class="row">' +
+                '<div class="col-sm-2">Subject:</div>' +
+                '<div class="col-sm-10"><input type="text" class="c-txt__input" id="txtSubject" value="' + ticketRes.ticket.subject + '"></input></div>' +
+              '</div>' +              
+              '<div class="row"><div class="col-sm-12"><input type="hidden" id="hdnParentId" value="'+ticketRes.ticket.id+'"><br></div></div>' +
+              '<div class="row">' +
+              '<div class="col-sm-4"></div>' +
+                '<div class="col-sm-4">' +
+                  '<button class="c-btn" type="submit">Generate</button>' +
+                '</div>' +
+                '<div class="col-sm-4"></div>' +
+              '</div>' +
+            '</form>';            
+            document.querySelector('#modal').addEventListener('submit', this.onModalSubmit.bind(this));
+          },
+
+          onModalSubmit: function(evt) {
+            var txtSubject = evt.target.querySelector('#txtSubject').value;
+            var txtRequester = evt.target.querySelector('#txtRequester').value;
+            var txtComment = evt.target.querySelectorAll('[name=commentDetails]');
+            var txtTags = evt.target.querySelector('#txtTag').value;
+            var txtParentId = evt.target.querySelector('#hdnParentId').value;
+            var txtTemplate = document.getElementById("txtTemplate").innerHTML;
+            evt.preventDefault();                         
+            var arrComment = new Array();
+            for(var i in txtComment){
+              arrComment.push(txtComment[i].value);
+            }            
+
+            var searchOpt = {
+              url: '/api/v2/search.json?query=type:user "' + txtRequester + '"',
+              type: 'GET'
+            }; 
+            
+            client.request(searchOpt).then(
+              function(response) {
+                console.log(response.results[0].id);
+                var options = {
+                  url: '/api/v2/tickets.json',              
+                  type: 'POST',
+                  data: JSON.stringify({
+                      "ticket":{
+                        "subject": txtSubject,                    
+                        "comment": { "html_body": txtTemplate },
+                        "tags": txtTags,
+                        "requester_id": response.results[0].id
+                      }
+                    }
+                  ), 
+                  contentType: "application/json"
+                };                 
+                client.request(options).then(
+                  function(response) {
+                    if(!isNaN(response.ticket.id)){
+                      var arrTag = new Array();
+                      arrTag.push('lnkt:chld:' + response.ticket.id);
+                      var tagOpt = {
+                        url: '/api/v2/tickets/'+txtParentId+'/tags.json',              
+                        type: 'PUT',
+                        data: JSON.stringify({                          
+                          tags: arrTag
+                        }), 
+                        contentType: "application/json"
+                      };
+                      client.request(tagOpt).then(
+                        function(response) {
+                          console.log(response);
+                      });
+                      var pvtCommentOpt = {
+                        url: '/api/v2/tickets/'+txtParentId+'.json',              
+                        type: 'PUT',
+                        data: JSON.stringify({
+                          "ticket":{
+                            "comment": { "html_body": txtTemplate, "public": false }
+                          }
+                        }), 
+                        contentType: "application/json"
+                      };
+                      client.request(pvtCommentOpt).then(
+                        function(response) {
+                          console.log(response);
+                      });
+                      if(arrComment.length > 0){
+                        for(var i in arrComment){
+                          console.log("listComment: " + decodeURIComponent(arrComment[i]));                           
+                          if(arrComment[i] != undefined){
+                            var ticketOpt = {
+                              url: '/api/v2/tickets/'+response.ticket.id+'.json',              
+                              type: 'PUT',
+                              data: JSON.stringify({
+                                  "ticket":{                                  
+                                    "comment": JSON.parse(decodeURIComponent(arrComment[i]))                                  
+                                  }
+                                }
+                              ), 
+                              contentType: "application/json"
+                            };
+                            client.request(ticketOpt).then(
+                              function(response) {
+                                console.log(response);
+                            });
+                          }                          
+                        } 
+                      }                                                                 
+                    }
+                    client.invoke('destroy');
+                });                      
+            });                 
+         
+          }
+        };  
+        new ModalApp(); 
+        var commentOpt = {
+          url: '/api/v2/tickets/' + ticket_data.ticket.id + '/comments.json',
+          type: 'GET'
+        };
+
+        client.request(commentOpt).then(
+          function(response) {
+            console.log(response);
+            var comments = response.comments;
+            for(var x in comments){
+              var attachments = comments[x].attachments;
+              var commBody = comments[x].body;
+              if(attachments.length > 0) {
+                commBody = commBody + ' - Attachments URL: ';
+              }
+              var attHtml = '';
+              for(var y in attachments){                
+                var attachType = attachments[y].content_type.includes("image") ? '<img src="' +attachments[y].thumbnails[0].content_url+'"/>' : attachments[y].file_name;
+                attHtml = attHtml + '<a href="' + attachments[y].content_url + '" target="_blank" >' + attachType + '</a><br>';
+                commBody = commBody + attachments[y].content_url + ' ';
+              }              
+              var commentDetail = encodeURIComponent(JSON.stringify({ 
+                body: commBody,                 
+              }));
+              $('#listComments').append('<li id="'+comments[x].id+'" class="list-group-item"> ' +
+                '<input type="button" data-id="'+comments[x].id+'" class="btn fixed-top listelement" value="X" /> <pre>'+comments[x].body+ '</pre>' + attHtml + 
+                '<input type="hidden" id="hdn'+comments[x].id+'" name="commentDetails" value="'+commentDetail+'"></li>');
+              $('#listComments').delegate(".listelement", "click", function() {
+                var elemid = $(this).attr('data-id');
+                $("#"+elemid).remove();
+              });
+            }            
+            return false;
+        });
+      });   
+      
+      pc.get('ticket.customField:custom_field_360007697033').then(function(ticket_fields){ 
+        var arr = []; 
+        for(var x in ticket_fields){
+          arr.push(ticket_fields[x]);
+        }        
+        document.querySelector('#txtRequester').value = arr[1];        
+      });
+
+      pc.get('ticket').then(function(ticket_data){
+        var parentId = ticket_data.ticket.id;
+        pc.get('macros').then(function(response){
+          var macroId = ''; 
+          for(var x in response.macros){
+            if(response.macros[x].title == 'Technician Template'){
+              macroId = response.macros[x].id;
+              break;
+            }
+          }
+          var macroOpt = {            
+            url: '/api/v2/tickets/'+parentId+'/macros/' +macroId+ '/apply.json',
+            type: 'GET'
+          };
+          client.request(macroOpt).then(
+            function(response) {            
+              document.getElementById("txtTemplate").innerHTML = response.result.ticket.comment.body;
+          });
+        });
+      });      
+    };
+    function parseParams(param_string){
+      var param_sub = param_string.replace('#','').split('&');
+      var param_obj = _.reduce(param_sub, function(memo, k){
+        kv = k.split('=');
+        memo[kv[0]] = kv[1];
+        return memo;
+      }, {});
+      return param_obj;  //Might be overbuilt but I like it because it returns a very pretty object
+    };
+    function getParentClient(parent_guid) {  //Definitely redundant but w/e
+      return client.instance(parent_guid)
+    }   
+  </script>
+</body>
+</html>
