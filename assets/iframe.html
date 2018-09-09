@@ -5,26 +5,49 @@
   <link rel="stylesheet" href="https://assets.zendesk.com/apps/sdk-assets/css/0/zendesk_garden.css" type="text/css">
 </head>
 <body>
-  <h2 class="u-gamma">Generate Technician Ticket</h2>
-  <br>  
-  <button class="edit c-btn" onclick="init();">Preview Technician</button>
+  <ul>
+    <li>
+      <div class="u-bg-snow u-p-sm u-mb-sm">
+        <h2 class="u-gamma">Generate Technician Ticket</h2>
+        <br>  
+        <button class="edit c-btn" onclick="initTech();">Preview Technician</button>
+      </div>
+    </li>
+    <li>
+      <div class="u-bg-snow u-p-sm u-mb-sm">
+        <h2 class="u-gamma">Generate Supplier Ticket</h2>
+        <br>  
+        <button class="edit c-btn" onclick="initSupl();">Preview Supplier</button>
+      </div>
+    </li>
+  </ul>
+    
   <!-- https://github.com/zendesk/zendesk_app_framework_sdk -->
   <script type="text/javascript" src="https://assets.zendesk.com/apps/sdk/2.0/zaf_sdk.js"></script>
-  <script>
-    // Initialise the Zendesk JavaScript API client
-    // https://developer.zendesk.com/apps/docs/apps-v2
+  <script>    
     var client = ZAFClient.init();
-    client.invoke('resize', { width: '100%', height: '200px' });
-    //client.on('app.registered', init);
-    function init(){
-      client.context().then(create_modal);
+    client.invoke('resize', { width: '100%', height: '200px' });    
+    function initTech(){
+      client.context().then(create_modal_tech);
+    };
+    function initSupl(){
+      client.context().then(create_modal_supl);
     };
     //When we create the modal we send the current client's guid as a hash parameter to the modal by adding it to the url
-    function create_modal(context){
+    function create_modal_tech(context){
       var parent_guid = context.instanceGuid;
       var options = {
         location: "modal",
-        url: "assets/modal.html#parent_guid=" + parent_guid
+        url: "assets/modalTech.html#parent_guid=" + parent_guid
+      }
+      client.invoke('instances.create', options)
+    };
+
+    function create_modal_supl(context){
+      var parent_guid = context.instanceGuid;
+      var options = {
+        location: "modal",
+        url: "assets/modalSupl.html#parent_guid=" + parent_guid
       }
       client.invoke('instances.create', options)
     };
