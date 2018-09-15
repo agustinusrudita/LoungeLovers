@@ -5,7 +5,7 @@
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
 </head>
 <body>
-  <h2 class="u-gamma">Generate Technician Ticket</h2>
+  <h2 class="u-gamma u-ta-center">Generate Technician Ticket</h2>
   <div id="modalContent">
   </div>
   <script src="//code.jquery.com/jquery-1.11.1.min.js"></script>
@@ -46,22 +46,25 @@
                 '<div class="col-sm-10"><input type="text" class="c-txt__input" id="txtRequester" readonly></input></div>' +
               '</div>' +
               '<div class="row">' +
-                '<div class="col-sm-2">Tag:</div>' +
-                '<div class="col-sm-10"><input type="text" class="c-txt__input" id="txtTag" value="' + ticketRes.ticket.tags + '"></input></div>' +
-              '</div>' +
+                '<div class="col-sm-2">Subject:</div>' +
+                '<div class="col-sm-10"><input type="text" class="c-txt__input" id="txtSubject"></input></div>' +
+              '</div>' +              
               '<div class="row">' +
                 '<div class="col-sm-2">Public Comment:</div>' +
-                '<div class="col-sm-10"><div id="txtTemplate" contenteditable="true" class="editor zendesk-editor--rich-text-comment" dir="auto"></div></div>' +
+                '<div class="col-sm-10"><div id="txtTemplate" contenteditable="true" class="u-p-sm c-txt__input editor zendesk-editor--rich-text-comment" dir="auto"></div></div>' +
               '</div>' +
               '<div class="row">' +
                 '<div class="col-sm-2">Attachments:</div>' +
                 '<div class="col-sm-10"><ul id="listComments" class="list-group"></ul></div>' +
-              '</div>' +
-              '<div class="row">' +
-                '<div class="col-sm-2">Subject:</div>' +
-                '<div class="col-sm-10"><input type="text" class="c-txt__input" id="txtSubject" value="' + ticketRes.ticket.subject + '"></input></div>' +
-              '</div>' +              
-              '<div class="row"><div class="col-sm-12"><input type="hidden" id="hdnParentId" value="'+ticketRes.ticket.id+'"><br></div></div>' +
+              '</div>' + 
+               '<div class="row">' +
+                '<div class="col-sm-2">Tag:</div>' +
+                '<div class="col-sm-10"><input type="text" class="c-txt__input" id="txtTag" readonly value="' + ticketRes.ticket.tags + '"></input></div>' +
+              '</div>' +                         
+              '<div class="row"><div class="col-sm-12">' +
+                '<input type="hidden" id="hdnParentId" value="'+ticketRes.ticket.id+'">' +
+                '<input type="hidden" id="hdnParentComment">' +
+                '<input type="hidden" id="hdnTechinicianId"><br></div></div>' +
               '<div class="row">' +
               '<div class="col-sm-4"></div>' +
                 '<div class="col-sm-4">' +
@@ -79,8 +82,10 @@
             var txtComment = evt.target.querySelectorAll('[name=commentDetails]');
             var txtTags = evt.target.querySelector('#txtTag').value;
             var txtParentId = evt.target.querySelector('#hdnParentId').value;
-            var txtTemplate = document.getElementById("txtTemplate").innerHTML;
-            evt.preventDefault();                         
+            var txtTemplate = document.getElementById("txtTemplate").innerHTML;   
+            
+            evt.preventDefault(); 
+            
             var arrComment = new Array();
             for(var i in txtComment){
               arrComment.push(txtComment[i].value);
@@ -92,8 +97,7 @@
             }; 
             
             client.request(searchOpt).then(
-              function(response) {
-                console.log(response.results[0].id);
+              function(response) {                            
                 var options = {
                   url: '/api/v2/tickets.json',              
                   type: 'POST',
@@ -107,7 +111,31 @@
                     }
                   ), 
                   contentType: "application/json"
-                };                 
+                };
+                var techId = response.results[0].id;
+                var technicianOpt = {            
+                  url: '/api/v2/users/'+ techId +'.json',
+                  type: 'GET'
+                };
+                client.request(technicianOpt).then(
+                  function(response) {
+                    var prntCmmtTemp = document.querySelector("#hdnParentComment").value;
+                    var prntCmmt = prntCmmtTemp.replace('{technician_contact_number}', response.user.phone);
+                    var prntCommentOpt = {
+                      url: '/api/v2/tickets/'+txtParentId+'.json',              
+                      type: 'PUT',
+                      data: JSON.stringify({
+                        "ticket":{
+                          "comment": { "html_body": prntCmmt, "public": true }
+                        }
+                      }), 
+                      contentType: "application/json"
+                    };
+                    client.request(prntCommentOpt).then(
+                      function(response) {
+                        console.log(response);
+                    });
+                }); 
                 client.request(options).then(
                   function(response) {
                     if(!isNaN(response.ticket.id)){
@@ -125,47 +153,37 @@
                         function(response) {
                           console.log(response);
                       });
-                      var pvtCommentOpt = {
-                        url: '/api/v2/tickets/'+txtParentId+'.json',              
-                        type: 'PUT',
-                        data: JSON.stringify({
-                          "ticket":{
-                            "comment": { "html_body": txtTemplate, "public": false }
-                          }
-                        }), 
-                        contentType: "application/json"
-                      };
-                      client.request(pvtCommentOpt).then(
-                        function(response) {
-                          console.log(response);
-                      });
+                      
                       if(arrComment.length > 0){
+                        var attList = 'Attachments:<br><ul>';
                         for(var i in arrComment){
                           console.log("listComment: " + decodeURIComponent(arrComment[i]));                           
                           if(arrComment[i] != undefined){
-                            var ticketOpt = {
-                              url: '/api/v2/tickets/'+response.ticket.id+'.json',              
-                              type: 'PUT',
-                              data: JSON.stringify({
-                                  "ticket":{                                  
-                                    "comment": JSON.parse(decodeURIComponent(arrComment[i]))                                  
-                                  }
-                                }
-                              ), 
-                              contentType: "application/json"
-                            };
-                            client.request(ticketOpt).then(
-                              function(response) {
-                                console.log(response);
-                            });
+                            attList = attList + '<li>' + decodeURIComponent(arrComment[i]) + '</li>';
                           }                          
                         } 
+                        attList = attList + '</ul>';
+                        var ticketOpt = {
+                          url: '/api/v2/tickets/'+response.ticket.id+'.json',              
+                          type: 'PUT',
+                          data: JSON.stringify({
+                              "ticket":{                                  
+                                "comment": { "html_body": attList }                                  
+                              }
+                            }
+                          ), 
+                          contentType: "application/json"
+                        };
+                        client.request(ticketOpt).then(
+                          function(response) {
+                            console.log(response);
+                        });
                       }                                                                 
                     }
                     client.invoke('destroy');
                 });                      
             });                 
-         
+
           }
         };  
         new ModalApp(); 
@@ -176,32 +194,36 @@
 
         client.request(commentOpt).then(
           function(response) {            
-            var comments = response.comments;            
+            var comments = response.comments;   
+            var arrAttachment = new Array();         
             for(var x in comments){
-              if(comments[x].public){
-                var attachments = comments[x].attachments;
-                var commBody = comments[x].body;
-                if(attachments.length > 0) {
-                  commBody = commBody + ' - Attachments URL: ';
-                }
-                var attHtml = '';
+              if(comments[x].public && comments[x].attachments.length > 0){
+                var attachments = comments[x].attachments;                                            
                 for(var y in attachments){                
                   var attachType = attachments[y].content_type.includes("image") ? '<img src="' +attachments[y].thumbnails[0].content_url+'"/>' : attachments[y].file_name;
-                  attHtml = attHtml + '<a href="' + attachments[y].content_url + '" target="_blank" >' + attachType + '</a><br>';
-                  commBody = commBody + attachments[y].content_url + ' ';
-                }              
-                var commentDetail = encodeURIComponent(JSON.stringify({ 
-                  body: commBody,                 
-                }));
-                $('#listComments').append('<li id="'+comments[x].id+'" class="list-group-item"> ' +
-                  '<input type="button" data-id="'+comments[x].id+'" class="btn fixed-top listelement" value="X" /> <pre>'+comments[x].body+ '</pre>' + attHtml + 
-                  '<input type="hidden" id="hdn'+comments[x].id+'" name="commentDetails" value="'+commentDetail+'"></li>');
-                $('#listComments').delegate(".listelement", "click", function() {
-                  var elemid = $(this).attr('data-id');
-                  $("#"+elemid).remove();
-                });
+                  var attHtml = '<a href="' + attachments[y].content_url + '" target="_blank" >' + attachType + '</a><br>';
+                  var attLink = '<a href="' + attachments[y].content_url + '" target="_blank" >' + attachments[y].file_name + '</a>';
+                  var attObj = {
+                    id: attachments[y].id,
+                    preview: attHtml,
+                    detail: encodeURIComponent(attLink)
+                  };
+                  arrAttachment.push(attObj);                  
+                }                              
               }
-            }            
+            }
+            for(var i in arrAttachment){
+              $('#listComments').append('<li id="'+arrAttachment[i].id+'" class="list-group-item"> ' +
+                '<div class="u-p-sm u-display-inline-block">' +
+                  '<input type="button" data-id="'+arrAttachment[i].id+'" class="c-btn c-btn--basic listelement" value="X" /></div>' +
+                '<div class="u-p-sm u-display-inline-block">' + arrAttachment[i].preview + 
+                '<input type="hidden" id="hdn'+arrAttachment[i].id+'" name="commentDetails" value="'+arrAttachment[i].detail+'"></div></li>');
+              $('#listComments').delegate(".listelement", "click", function() {
+                var elemid = $(this).attr('data-id');
+                $("#"+elemid).remove();
+              });
+            }
+            
             return false;
         });
       });   
@@ -217,20 +239,50 @@
       pc.get('ticket').then(function(ticket_data){
         var parentId = ticket_data.ticket.id;
         pc.get('macros').then(function(response){
-          var macroId = ''; 
+          var macroTechId = ''; 
+          var macroParentId = '';
+          var techSubjectId = '';
           for(var x in response.macros){
             if(response.macros[x].title == 'Technician Template'){
-              macroId = response.macros[x].id;
-              break;
+              macroTechId = response.macros[x].id;
+              continue;
+            }
+
+            if(response.macros[x].title == 'Technician Parent Template'){
+              macroParentId = response.macros[x].id;
+              continue;
+            }
+            if(response.macros[x].title == 'Technician Subject'){
+              techSubjectId = response.macros[x].id;
+              continue;
             }
           }
           var macroOpt = {            
-            url: '/api/v2/tickets/'+parentId+'/macros/' +macroId+ '/apply.json',
+            url: '/api/v2/tickets/'+parentId+'/macros/' +macroTechId+ '/apply.json',
             type: 'GET'
           };
           client.request(macroOpt).then(
             function(response) {            
               document.getElementById("txtTemplate").innerHTML = response.result.ticket.comment.body;
+          });
+
+          var macroPrntOpt = {            
+            url: '/api/v2/tickets/'+parentId+'/macros/' +macroParentId+ '/apply.json',
+            type: 'GET'
+          };
+          client.request(macroPrntOpt).then(
+            function(response) {            
+              var prntComment = response.result.ticket.comment.body;
+              document.querySelector("#hdnParentComment").value = prntComment;                          
+          });
+
+          var macroSubjOpt = {            
+            url: '/api/v2/macros/' + techSubjectId + '/apply.json',
+            type: 'GET'
+          };
+          client.request(macroSubjOpt).then(
+            function(response) {            
+              document.querySelector("#txtSubject").value = response.result.ticket.subject;
           });
         });
       });      
